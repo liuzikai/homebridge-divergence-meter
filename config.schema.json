@@ -1,5 +1,5 @@
 {
-  "pluginAlias": "ExampleHomebridgePlugin",
+  "pluginAlias": "DivergenceMeter",
   "pluginType": "platform",
   "singular": true,
   "schema": {
@@ -9,7 +9,92 @@
         "title": "Name",
         "type": "string",
         "required": true,
-        "default": "Example Dynamic Platform"
+        "default": "Divergence Meter"
+      },
+      "auto_off": {
+        "title": "Auto turn off after sometime since the last operation (turning on, changing mode, etc.)",
+        "type": "string",
+        "oneOf": [
+          { "title": "Never", "enum": ["never"] },
+          { "title": "Always", "enum": ["always"] },
+          { "title": "Add a switch, if it's on", "enum": ["switch"] }
+        ],
+        "default": "switch"
+      },
+      "auto_off_name": {
+        "title": "Auto-off switch accessory name",
+        "type": "string",
+        "default": "Divergence Meter Auto-Off"
+      },
+      "auto_off_time": {
+        "title": "Auto-off after (minutes)",
+        "type": "integer",
+        "minimum": 1,
+        "default": 5
+      },
+      "random_switch_name": {
+        "title": "Random worldline switch accessory name",
+        "type": "string",
+        "default": "Divergence Meter Random",
+        "description": "Turn on the switch to start randomization. Turn off to settle."
+      },
+      "worldline_1": {
+        "title": "Customized worldline 1",
+        "type": "string",
+        "minLength": 8,
+        "maxLength": 8,
+        "default": "1.048596",
+        "required": true,
+        "description": "Must have length 8. A character other than 0-9 and '.' turns off the tube."
+      },
+      "worldline_2": {
+        "title": "Customized worldline 2",
+        "type": "string",
+        "minLength": 8,
+        "maxLength": 8,
+        "required": true,
+        "default": "0.000000"
+      },
+      "worldline_3": {
+        "title": "Customized worldline 3",
+        "type": "string",
+        "minLength": 8,
+        "maxLength": 8,
+        "required": true,
+        "default": "0.571015"
+      },
+      "worldline_4": {
+        "title": "Customized worldline 4",
+        "type": "string",
+        "minLength": 8,
+        "maxLength": 8,
+        "required": true,
+        "default": "0.523299"
+      },
+      "worldline_5": {
+        "title": "Customized worldline 5",
+        "type": "string",
+        "minLength": 8,
+        "maxLength": 8,
+        "required": true,
+        "default": "0.456903"
+      },
+      "worldline_6": {
+        "title": "Customized worldline 6",
+        "type": "string",
+        "minLength": 8,
+        "maxLength": 8,
+        "required": true,
+        "default": "0.409420"
+      },
+      "worldline_7": {
+        "title": "Customized worldline 7",
+        "type": "string",
+        "minLength": 8,
+        "maxLength": 8,
+        "required": true,
+        "default": "0.337187",
+        "description": "The customized worldline 8 is used internally to soft turn off the meter."
       }
     }
   }
