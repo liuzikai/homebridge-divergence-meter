@@ -1,6 +1,6 @@
-import { Service, PlatformAccessory, CharacteristicValue } from 'homebridge';
-
-import { DivergenceMeterPlatform } from './platform';
+import {Service, PlatformAccessory, CharacteristicValue} from 'homebridge';
+import {DivergenceMeterPlatform} from './platform';
+import {DivergenceMeter} from "./divergenceMeter";
 
 /**
  * Platform Accessory
@@ -9,6 +9,7 @@ import { DivergenceMeterPlatform } from './platform';
  */
 export class ExamplePlatformAccessory {
   private service: Service;
+  private meter: DivergenceMeter;
 
   /**
    * These are just used to create a working example
@@ -23,6 +24,8 @@ export class ExamplePlatformAccessory {
     private readonly platform: DivergenceMeterPlatform,
     private readonly accessory: PlatformAccessory,
   ) {
+
+    this.meter = new DivergenceMeter(this.platform.log);
 
     // set accessory information
     this.accessory.getService(this.platform.Service.AccessoryInformation)!
@@ -73,45 +76,26 @@ export class ExamplePlatformAccessory {
     // Display modes
     // Display name must not contain special characters like '(' and ')'
     const modes = [
-      {
-        id: "time_mode_1",
-        displayName: "Time Mode 1",
-      },
-      {
-        id: "time_mode_2",
-        displayName: "Time Mode 2",
-      },
-      {
-        id: "time_mode_3",
-        displayName: "Time Mode 3",
-      },
-      {
-        id: "gyroscope",
-        displayName: "Gyroscope",
-      },
-      {
-        id: "saved_random",
-        displayName: "Saved Random",
-      }
+      'Time Mode 1', 'Time Mode 2', 'Time Mode 3', 'Gyroscope', 'Saved Random',
     ];
     for (let i = 0; i < modes.length; i++) {
       const mode = modes[i];
 
       // Need to loop up the service by name due to the same type
-      const inputService = this.accessory.getService(mode.displayName) ||
+      const inputService = this.accessory.getService(mode) ||
         // Here the mode.displayName is the default name of the input source
-        this.accessory.addService(this.platform.Service.InputSource, mode.displayName, mode.id);
+        this.accessory.addService(this.platform.Service.InputSource, mode, mode.replace(/ /g, "_"));
 
       inputService
         .setCharacteristic(this.platform.Characteristic.Identifier, i)
 
         // Not sure what this is
-        .setCharacteristic(this.platform.Characteristic.Name, mode.displayName)
+        .setCharacteristic(this.platform.Characteristic.Name, mode)
 
         // ConfiguredName is read during setup and written when user set it
-        // Changing this value from homebridge is not reliable. Experiment shows that it's not pulled by iOS when the TV is off. It's 
-        // pulled at a very very low frequency if the TV is on.
-        .setCharacteristic(this.platform.Characteristic.ConfiguredName, mode.displayName)
+        // Changing this value from homebridge is not reliable. Experiment shows that it's not pulled by iOS when the TV is off. It's
+        // pulled at a very low frequency if the TV is on.
+        .setCharacteristic(this.platform.Characteristic.ConfiguredName, mode)
 
         // NOT_CONFIGURED makes the input source invisible
         // It seems that IsConfigured is never set
@@ -123,7 +107,6 @@ export class ExamplePlatformAccessory {
       // Link to the tv service
       this.service.addLinkedService(inputService);
     }
-
 
 
     /**
@@ -174,8 +157,12 @@ export class ExamplePlatformAccessory {
   async setOn(value: CharacteristicValue) {
     // implement your own code to turn your device on/off
     this.exampleStates.On = value as number;
-
     this.platform.log.debug('Set Characteristic On ->', value);
+    if (value) {
+      this.meter.sendCommand('#430');
+    } else {
+      this.meter.sendCommand('#33        ');
+    }
   }
 
   /**
