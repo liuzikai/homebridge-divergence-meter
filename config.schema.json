@@ -11,6 +11,11 @@
         "required": true,
         "default": "Divergence Meter"
       },
+      "use24H": {
+        "title": "Use 24H for Time Display",
+        "type": "boolean",
+        "default": "true"
+      },
       "auto_off": {
         "title": "Auto Off",
         "type": "boolean",
@@ -28,6 +33,17 @@
         "type": "string",
         "default": "Random Worldline",
         "description": "Turn on the switch to start randomization. Turn off to settle."
+      },
+      "random_min": {
+        "title": "Controlled Random Min",
+        "type": "number",
+        "default": "0.000000",
+        "description": "Do you know how a negativedivergence value is displayed? Try it out"
+      },
+      "random_max": {
+        "title": "Controlled Random Max",
+        "type": "number",
+        "default": "0.999999"
       },
       "worldlines": {
         "title": "Customized Worldlines",
