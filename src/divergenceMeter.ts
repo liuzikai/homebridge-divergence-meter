@@ -1,5 +1,5 @@
-import noble, { Peripheral, Characteristic } from '@abandonware/noble';
-import { Logger } from 'homebridge';
+import noble, {Peripheral, Characteristic} from '@abandonware/noble';
+import {Logger} from 'homebridge';
 
 const SERVICE_UUID = '0000ffe0-0000-1000-8000-00805f9b34fb';
 const CHARACTERISTIC_UUID = '0000ffe1-0000-1000-8000-00805f9b34fb';
@@ -69,6 +69,8 @@ export class DivergenceMeter {
       this.log.warn(`Cannot write to ${PERIPHERAL_NAME}: no characteristic found`);
       return;
     }
+
+    // No callback, or one new callback is registered every time
     this.characteristic.write(data, false)
   }
 
@@ -79,5 +81,61 @@ export class DivergenceMeter {
       const buffer = Buffer.from(command.padEnd(18, '*'));
       this.write(buffer);
     }
+  }
+
+  public turnOff() {
+    this.sendCommand('#33        ');  // customized worldline 4
+  }
+
+  public worldlineMode(index: number, text: string) {
+    if (!Number.isInteger(index) || index < 0 || index > 7) {
+      this.log.error('Index must be an integer in the range of 0 to 7');
+      return;
+    }
+    if (text.length !== 8) {
+      this.log.error('Text must have length 8');
+      return;
+    }
+    this.sendCommand('#3' + index.toString() + text);
+  }
+
+  public timeMode(mode: number) {
+    if (mode === 0) {
+      this.sendCommand('#410'); // HH MM SS
+    } else if (mode === 1) {
+      this.sendCommand('#411'); // 0.HHMMSS
+    } else if (mode === 2) {
+      this.sendCommand('#412'); // HHMMSS.uS
+    }
+    this.sendCommand('#430');
+  }
+
+  public gyroMode() {
+    this.sendCommand('#422');
+  }
+
+  public randomMode(flashing: boolean) {
+    if (flashing) {
+      this.sendCommand('#4211');
+    } else {
+      this.sendCommand('#4210');
+    }
+  }
+
+  public set12Or24H(use24H: boolean) {
+    if (use24H) {
+      this.sendCommand('#400');
+    } else {
+      this.sendCommand('#401');
+    }
+  }
+
+  getFormattedTime(): string {
+    const now = new Date();
+    return now.toISOString().replace(/[-:.T]/g, "").substr(0, 14);
+  }
+
+  public syncTime() {
+    this.sendCommand('#0' + this.getFormattedTime());
   }
 }

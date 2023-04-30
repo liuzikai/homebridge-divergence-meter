@@ -52,7 +52,7 @@ export class ExamplePlatformAccessory {
 
     // register handlers for the Active Characteristic
     this.service.getCharacteristic(this.platform.Characteristic.Active)
-      .onSet(this.setOn.bind(this))                // SET - bind to the `setOn` method below
+      .onSet(this.setActive.bind(this))                // SET - bind to the `setActive` method below
       .onGet(this.getOn.bind(this));               // GET - bind to the `getOn` method below
 
     this.service.setCharacteristic(this.platform.Characteristic.ActiveIdentifier, 1);
@@ -154,14 +154,14 @@ export class ExamplePlatformAccessory {
    * Handle "SET" requests from HomeKit
    * These are sent when the user changes the state of an accessory, for example, turning on a Light bulb.
    */
-  async setOn(value: CharacteristicValue) {
+  async setActive(value: CharacteristicValue) {
     // implement your own code to turn your device on/off
     this.exampleStates.On = value as number;
-    this.platform.log.debug('Set Characteristic On ->', value);
+    this.platform.log.debug('Set Characteristic Active ->', value);
     if (value) {
       this.meter.sendCommand('#430');
     } else {
-      this.meter.sendCommand('#33        ');
+      this.meter.turnOff();
     }
   }
 
