@@ -1,14 +1,19 @@
-import {Service, PlatformAccessory, CharacteristicValue} from 'homebridge';
+import {Service, PlatformAccessory, CharacteristicValue, Logger, Characteristic} from 'homebridge';
 import {DivergenceMeterPlatform} from './platform';
-import {DivergenceMeter} from "./divergenceMeter";
+import {DivergenceMeter} from './divergenceMeter';
 
 /**
  * Platform Accessory
  * An instance of this class is created for each accessory your platform registers
  * Each accessory may expose multiple services of different service types.
  */
-export class ExamplePlatformAccessory {
-  private service: Service;
+export class DivergenceMeterAccessory {
+  public readonly log: Logger = this.platform.log;
+  public readonly Service: typeof Service = this.platform.api.hap.Service;
+  public readonly Characteristic: typeof Characteristic = this.platform.api.hap.Characteristic;
+
+  private tv: Service;
+
   private meter: DivergenceMeter;
 
   /**
@@ -25,52 +30,54 @@ export class ExamplePlatformAccessory {
     private readonly accessory: PlatformAccessory,
   ) {
 
-    this.meter = new DivergenceMeter(this.platform.log);
+    // Create the BLE backend
+    this.meter = new DivergenceMeter(this.log);
 
-    // set accessory information
-    this.accessory.getService(this.platform.Service.AccessoryInformation)!
-      .setCharacteristic(this.platform.Characteristic.Manufacturer, 'Sadudu')
-      .setCharacteristic(this.platform.Characteristic.Model, 'Divergence Meter')
-      .setCharacteristic(this.platform.Characteristic.SerialNumber, 'El Psy Congroo');
+    // Set accessory information
+    this.accessory.getService(this.Service.AccessoryInformation)!
+      .setCharacteristic(this.Characteristic.Manufacturer, 'Sadudu')
+      .setCharacteristic(this.Characteristic.Model, 'Divergence Meter')
+      .setCharacteristic(this.Characteristic.SerialNumber, 'El Psy Congroo');
 
-    // get the Television service if it exists, otherwise create a new Television service
-    // you can create multiple services for each accessory
-    this.service = this.accessory.getService(this.platform.Service.Television) || this.accessory.addService(this.platform.Service.Television);
+    // Get the Television service if it exists, otherwise create a new Television service
+    this.tv = this.accessory.getService(this.Service.Television) || this.accessory.addService(this.Service.Television);
 
-    // set the service name, this is what is displayed as the default name on the Home app
-    // in this example we are using the name we stored in the `accessory.context` in the `discoverDevices` method.
-    // this.service.setCharacteristic(this.platform.Characteristic.Name, accessory.context.device.exampleDisplayName);
+    // Set the service name, this is what is displayed as the default name on the Home app
+    // Use the name we stored in the `accessory.context` in the `discoverDevices` method.
+    this.tv.setCharacteristic(this.Characteristic.Name, accessory.context.displayName);
 
-    // each service must implement at-minimum the "required characteristics" for the given service type
-    // see https://developers.homebridge.io/#/service/Television
+    // https://developers.homebridge.io/#/service/Television
 
-    // set the tv name
-    this.service.setCharacteristic(this.platform.Characteristic.ConfiguredName, accessory.context.device.exampleDisplayName);
+    this.tv.setCharacteristic(this.Characteristic.SleepDiscoveryMode, this.Characteristic.SleepDiscoveryMode.ALWAYS_DISCOVERABLE);
 
-    // set sleep discovery characteristic
-    this.service.setCharacteristic(this.platform.Characteristic.SleepDiscoveryMode, this.platform.Characteristic.SleepDiscoveryMode.ALWAYS_DISCOVERABLE);
+    // Restore persistent data from context
+    this.log.debug("context:", accessory.context);
+    this.tv.updateCharacteristic(this.Characteristic.ConfiguredName,
+      this.accessory.context.ConfiguredName || accessory.context.displayName);
+    this.tv.updateCharacteristic(this.Characteristic.Active,
+      this.accessory.context.Active || this.Characteristic.Active.INACTIVE);
+    this.tv.updateCharacteristic(this.Characteristic.ActiveIdentifier,
+      this.accessory.context.ActiveIdentifier || 0);
 
-    // register handlers for the Active Characteristic
-    this.service.getCharacteristic(this.platform.Characteristic.Active)
+    // Register handlers for the Active Characteristic
+    this.tv.getCharacteristic(this.Characteristic.Active)
       .onSet(this.setActive.bind(this))                // SET - bind to the `setActive` method below
-      .onGet(this.getOn.bind(this));               // GET - bind to the `getOn` method below
+      .onGet(this.getActive.bind(this));               // GET - bind to the `getActive` method below
 
-    this.service.setCharacteristic(this.platform.Characteristic.ActiveIdentifier, 1);
+    // Handle input source changes
+    this.tv.getCharacteristic(this.Characteristic.ActiveIdentifier)
+      .onSet(async (newValue) => {
+        this.log.debug('Set ActiveIdentifier ->' + newValue);
+        // Persistent in context
+        this.accessory.context.ActiveIdentifier = newValue;
+        // Apply action
+        await this.handleInputSource(newValue as number);
+      });
 
-    // handle input source changes
-    this.service.getCharacteristic(this.platform.Characteristic.ActiveIdentifier)
-      .onSet((newValue) => {
-
-        // the value will be the value you set for the Identifier Characteristic
-        // on the Input Source service that was selected - see input sources below.
-
-        this.platform.log.info('set Active Identifier => setNewValue: ' + newValue);
-
-        const inputService = this.accessory.getService("Time Mode 3");
-        if (inputService) {
-          inputService
-            .setCharacteristic(this.platform.Characteristic.ConfiguredName, 'Time Mode Foo' + newValue);
-        }
+    this.tv.getCharacteristic(this.Characteristic.ConfiguredName)
+      .onSet((value) => {
+        // Persistent in context
+        this.accessory.context.ConfiguredName = value;
       });
 
     // Display modes
@@ -84,28 +91,28 @@ export class ExamplePlatformAccessory {
       // Need to loop up the service by name due to the same type
       const inputService = this.accessory.getService(mode) ||
         // Here the mode.displayName is the default name of the input source
-        this.accessory.addService(this.platform.Service.InputSource, mode, mode.replace(/ /g, "_"));
+        this.accessory.addService(this.Service.InputSource, mode, mode.replace(/ /g, "_"));
 
       inputService
-        .setCharacteristic(this.platform.Characteristic.Identifier, i)
+        .setCharacteristic(this.Characteristic.Identifier, i)
 
         // Not sure what this is
-        .setCharacteristic(this.platform.Characteristic.Name, mode)
+        .setCharacteristic(this.Characteristic.Name, mode)
 
         // ConfiguredName is read during setup and written when user set it
-        // Changing this value from homebridge is not reliable. Experiment shows that it's not pulled by iOS when the TV is off. It's
-        // pulled at a very low frequency if the TV is on.
-        .setCharacteristic(this.platform.Characteristic.ConfiguredName, mode)
+        // Changing this value from here is not reliable. Experiment shows that it's not pulled by iOS when the
+        // TV is off. It's pulled at a very low frequency if the TV is on.
+        .setCharacteristic(this.Characteristic.ConfiguredName, mode)
 
         // NOT_CONFIGURED makes the input source invisible
         // It seems that IsConfigured is never set
-        .setCharacteristic(this.platform.Characteristic.IsConfigured, this.platform.Characteristic.IsConfigured.CONFIGURED)
+        .setCharacteristic(this.Characteristic.IsConfigured, this.Characteristic.IsConfigured.CONFIGURED)
 
-        .setCharacteristic(this.platform.Characteristic.InputSourceType, this.platform.Characteristic.InputSourceType.HDMI)
-        .setCharacteristic(this.platform.Characteristic.CurrentVisibilityState, this.platform.Characteristic.CurrentVisibilityState.SHOWN);
+        .setCharacteristic(this.Characteristic.InputSourceType, this.Characteristic.InputSourceType.HDMI)
+        .setCharacteristic(this.Characteristic.CurrentVisibilityState, this.Characteristic.CurrentVisibilityState.SHOWN);
 
       // Link to the tv service
-      this.service.addLinkedService(inputService);
+      this.tv.addLinkedService(inputService);
     }
 
 
@@ -114,7 +121,7 @@ export class ExamplePlatformAccessory {
      *
      * To avoid "Cannot add a Service with the same UUID another Service without also defining a unique 'subtype' property." error,
      * when creating multiple services of the same type, you need to use the following syntax to specify a name and subtype id:
-     * this.accessory.getService('NAME') || this.accessory.addService(this.platform.Service.Lightbulb, 'NAME', 'USER_DEFINED_SUBTYPE_ID');
+     * this.accessory.getService('NAME') || this.accessory.addService(this.Service.Lightbulb, 'NAME', 'USER_DEFINED_SUBTYPE_ID');
      *
      * The USER_DEFINED_SUBTYPE must be unique to the platform accessory (if you platform exposes multiple accessories, each accessory
      * can use the same sub type id.)
@@ -122,10 +129,10 @@ export class ExamplePlatformAccessory {
 
     // Example: add two "motion sensor" services to the accessory
     // const motionSensorOneService = this.accessory.getService('Motion Sensor One Name') ||
-    //   this.accessory.addService(this.platform.Service.MotionSensor, 'Motion Sensor One Name', 'YourUniqueIdentifier-1');
+    //   this.accessory.addService(this.Service.MotionSensor, 'Motion Sensor One Name', 'YourUniqueIdentifier-1');
 
     // const motionSensorTwoService = this.accessory.getService('Motion Sensor Two Name') ||
-    //   this.accessory.addService(this.platform.Service.MotionSensor, 'Motion Sensor Two Name', 'YourUniqueIdentifier-2');
+    //   this.accessory.addService(this.Service.MotionSensor, 'Motion Sensor Two Name', 'YourUniqueIdentifier-2');
 
     /**
      * Updating characteristics values asynchronously.
@@ -142,12 +149,22 @@ export class ExamplePlatformAccessory {
     //   motionDetected = !motionDetected;
 
     //   // push the new value to HomeKit
-    //   motionSensorOneService.updateCharacteristic(this.platform.Characteristic.MotionDetected, motionDetected);
-    //   motionSensorTwoService.updateCharacteristic(this.platform.Characteristic.MotionDetected, !motionDetected);
+    //   motionSensorOneService.updateCharacteristic(this.Characteristic.MotionDetected, motionDetected);
+    //   motionSensorTwoService.updateCharacteristic(this.Characteristic.MotionDetected, !motionDetected);
 
-    //   this.platform.log.debug('Triggering motionSensorOneService:', motionDetected);
-    //   this.platform.log.debug('Triggering motionSensorTwoService:', !motionDetected);
+    //   this.log.debug('Triggering motionSensorOneService:', motionDetected);
+    //   this.log.debug('Triggering motionSensorTwoService:', !motionDetected);
     // }, 10000);
+  }
+
+  async handleInputSource(mode: number) {
+    if (mode in [0, 1, 2]) {
+      this.meter.timeMode(mode);
+    } else if (mode === 3) {
+      this.meter.gyroMode();
+    } else if (mode === 4) {
+      // TODO:
+    }
   }
 
   /**
@@ -155,11 +172,13 @@ export class ExamplePlatformAccessory {
    * These are sent when the user changes the state of an accessory, for example, turning on a Light bulb.
    */
   async setActive(value: CharacteristicValue) {
-    // implement your own code to turn your device on/off
-    this.exampleStates.On = value as number;
-    this.platform.log.debug('Set Characteristic Active ->', value);
+    this.log.debug('Set Active ->', value);
+
+    // Persistent in context
+    this.accessory.context.Active = value;
+
     if (value) {
-      this.meter.sendCommand('#430');
+      await this.handleInputSource(this.tv.getCharacteristic(this.Characteristic.ActiveIdentifier).value as number);
     } else {
       this.meter.turnOff();
     }
@@ -176,29 +195,18 @@ export class ExamplePlatformAccessory {
    * asynchronously instead using the `updateCharacteristic` method instead.
 
    * @example
-   * this.service.updateCharacteristic(this.platform.Characteristic.On, true)
+   * this.service.updateCharacteristic(this.Characteristic.On, true)
    */
-  async getOn(): Promise<CharacteristicValue> {
+  async getActive(): Promise<CharacteristicValue> {
     // implement your own code to check if the device is on
-    const isOn = this.exampleStates.On;
+    const isOn = this.tv.getCharacteristic(this.Characteristic.Active).value || false;
+    this.log.debug('Get Active, isOn =', isOn);
 
-    this.platform.log.debug('Get Characteristic On ->', isOn);
-
-    // if you need to return an error to show the device as "Not Responding" in the Home app:
-    // throw new this.platform.api.hap.HapStatusError(this.platform.api.hap.HAPStatus.SERVICE_COMMUNICATION_FAILURE);
-
+    if (!this.meter.isConnectedToPeripheral()) {
+      // show the device as "Not Responding" in the Home app
+      throw new this.platform.api.hap.HapStatusError(this.platform.api.hap.HAPStatus.SERVICE_COMMUNICATION_FAILURE);
+    }
     return isOn;
-  }
-
-  /**
-   * Handle "SET" requests from HomeKit
-   * These are sent when the user changes the state of an accessory, for example, changing the Brightness
-   */
-  async setBrightness(value: CharacteristicValue) {
-    // implement your own code to set the brightness
-    this.exampleStates.Brightness = value as number;
-
-    this.platform.log.debug('Set Characteristic Brightness -> ', value);
   }
 
 }
