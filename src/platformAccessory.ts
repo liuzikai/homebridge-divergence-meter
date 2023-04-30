@@ -1,6 +1,8 @@
 import {Service, PlatformAccessory, CharacteristicValue, Logger, Characteristic} from 'homebridge';
 import {DivergenceMeterPlatform} from './platform';
 import {DivergenceMeter} from './divergenceMeter';
+import storage from "node-persist";
+import path from "path";
 
 /**
  * Platform Accessory
@@ -50,14 +52,8 @@ export class DivergenceMeterAccessory {
 
     this.tv.setCharacteristic(this.Characteristic.SleepDiscoveryMode, this.Characteristic.SleepDiscoveryMode.ALWAYS_DISCOVERABLE);
 
-    // Restore persistent data from context
-    this.log.debug("context:", accessory.context);
-    this.tv.updateCharacteristic(this.Characteristic.ConfiguredName,
-      this.accessory.context.ConfiguredName || accessory.context.displayName);
-    this.tv.updateCharacteristic(this.Characteristic.Active,
-      this.accessory.context.Active || this.Characteristic.Active.INACTIVE);
-    this.tv.updateCharacteristic(this.Characteristic.ActiveIdentifier,
-      this.accessory.context.ActiveIdentifier || 0);
+    // Restore persistent data from persistent storage
+    this.setCharacteristicsFromStorage().then();
 
     // Register handlers for the Active Characteristic
     this.tv.getCharacteristic(this.Characteristic.Active)
@@ -66,18 +62,13 @@ export class DivergenceMeterAccessory {
 
     // Handle input source changes
     this.tv.getCharacteristic(this.Characteristic.ActiveIdentifier)
-      .onSet(async (newValue) => {
-        this.log.debug('Set ActiveIdentifier ->' + newValue);
-        // Persistent in context
-        this.accessory.context.ActiveIdentifier = newValue;
-        // Apply action
-        await this.handleInputSource(newValue as number);
-      });
+      .onSet(this.onSetActiveIdentifier.bind(this));
 
+    // Handle ConfiguredName changes
     this.tv.getCharacteristic(this.Characteristic.ConfiguredName)
-      .onSet((value) => {
-        // Persistent in context
-        this.accessory.context.ConfiguredName = value;
+      .onSet(async (value) => {
+        // Persist
+        await storage.setItem('ConfiguredName', value)
       });
 
     // Display modes
@@ -91,7 +82,7 @@ export class DivergenceMeterAccessory {
       // Need to loop up the service by name due to the same type
       const inputService = this.accessory.getService(mode) ||
         // Here the mode.displayName is the default name of the input source
-        this.accessory.addService(this.Service.InputSource, mode, mode.replace(/ /g, "_"));
+        this.accessory.addService(this.Service.InputSource, mode, mode.replace(/ /g, '_'));
 
       inputService
         .setCharacteristic(this.Characteristic.Identifier, i)
@@ -157,6 +148,21 @@ export class DivergenceMeterAccessory {
     // }, 10000);
   }
 
+  async onSetActiveIdentifier(value) {
+    this.log.debug('Set ActiveIdentifier -> ' + value);
+    // Apply action
+    await this.handleInputSource(value as number);
+    // Persist
+    await storage.setItem('ActiveIdentifier', value);
+  }
+
+  async setCharacteristicsFromStorage() {
+    await storage.init({dir: path.join(this.platform.api.user.storagePath(), 'divergence')});
+    this.tv.updateCharacteristic(this.Characteristic.ConfiguredName, await storage.getItem('ConfiguredName') || 'Divergence Meter');
+    this.tv.updateCharacteristic(this.Characteristic.Active, await storage.getItem('Active') || this.Characteristic.Active.INACTIVE);
+    this.tv.updateCharacteristic(this.Characteristic.ActiveIdentifier, await storage.getItem('ActiveIdentifier') || 0);
+  }
+
   async handleInputSource(mode: number) {
     if (mode in [0, 1, 2]) {
       this.meter.timeMode(mode);
@@ -174,14 +180,14 @@ export class DivergenceMeterAccessory {
   async setActive(value: CharacteristicValue) {
     this.log.debug('Set Active ->', value);
 
-    // Persistent in context
-    this.accessory.context.Active = value;
-
     if (value) {
       await this.handleInputSource(this.tv.getCharacteristic(this.Characteristic.ActiveIdentifier).value as number);
     } else {
       this.meter.turnOff();
     }
+
+    // Persist
+    await storage.setItem('Active', value);
   }
 
   /**
