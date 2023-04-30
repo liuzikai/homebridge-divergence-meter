@@ -58,7 +58,7 @@ export class DivergenceMeterPlatform implements DynamicPlatformPlugin {
    */
   discoverDevice() {
     const displayName = 'Divergence Meter';
-    const uuid = this.api.hap.uuid.generate(displayName);
+    const uuid = this.api.hap.uuid.generate('homebridge:divergence-meter');
 
     // See if an accessory with the same uuid has already been registered and restored from
     // the cached devices we stored in the `configureAccessory` method above
@@ -68,9 +68,8 @@ export class DivergenceMeterPlatform implements DynamicPlatformPlugin {
       // The accessory already exists
       this.log.info('Restoring existing accessory from cache:', existingAccessory.displayName);
 
-
       // Create the accessory handler for the restored accessory
-      new DivergenceMeterAccessory(this, existingAccessory);
+      new DivergenceMeterAccessory(this, existingAccessory, this.config);
 
     } else {
       // The accessory does not yet exist, so we need to create it
@@ -79,11 +78,8 @@ export class DivergenceMeterPlatform implements DynamicPlatformPlugin {
       // Create a new accessory
       const accessory = new this.api.platformAccessory(displayName, uuid);
 
-      // Store the displayName in the `accessory.context`
-      accessory.context.displayName = displayName;
-
       // Create the accessory handler for the newly create accessory
-      new DivergenceMeterAccessory(this, accessory);
+      new DivergenceMeterAccessory(this, accessory, this.config);
 
       // Television should be published as external accessories that the user adds manually
       // There will be problems (e.g. input sources do not have correct names) without going through the setup process

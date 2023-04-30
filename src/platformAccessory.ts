@@ -1,4 +1,4 @@
-import {Service, PlatformAccessory, CharacteristicValue, Logger, Characteristic} from 'homebridge';
+import {Service, PlatformAccessory, CharacteristicValue, Logger, Characteristic, PlatformConfig} from 'homebridge';
 import {DivergenceMeterPlatform} from './platform';
 import {DivergenceMeter} from './divergenceMeter';
 import storage from "node-persist";
@@ -16,6 +16,11 @@ export class DivergenceMeterAccessory {
 
   private tv: Service;
 
+  // Display names must not contain special characters like '(' and ')'
+  private modes: string[] = [
+    'Time Mode 1', 'Time Mode 2', 'Time Mode 3', 'Gyroscope', 'Saved Random',
+  ];
+
   private meter: DivergenceMeter;
 
   /**
@@ -30,6 +35,7 @@ export class DivergenceMeterAccessory {
   constructor(
     private readonly platform: DivergenceMeterPlatform,
     private readonly accessory: PlatformAccessory,
+    public readonly config: PlatformConfig,
   ) {
 
     // Create the BLE backend
@@ -44,67 +50,12 @@ export class DivergenceMeterAccessory {
     // Get the Television service if it exists, otherwise create a new Television service
     this.tv = this.accessory.getService(this.Service.Television) || this.accessory.addService(this.Service.Television);
 
-    // Set the service name, this is what is displayed as the default name on the Home app
-    // Use the name we stored in the `accessory.context` in the `discoverDevices` method.
-    this.tv.setCharacteristic(this.Characteristic.Name, accessory.context.displayName);
+    this.setupTVService();
 
-    // https://developers.homebridge.io/#/service/Television
-
-    this.tv.setCharacteristic(this.Characteristic.SleepDiscoveryMode, this.Characteristic.SleepDiscoveryMode.ALWAYS_DISCOVERABLE);
+    this.setupInputSources();
 
     // Restore persistent data from persistent storage
     this.setCharacteristicsFromStorage().then();
-
-    // Register handlers for the Active Characteristic
-    this.tv.getCharacteristic(this.Characteristic.Active)
-      .onSet(this.setActive.bind(this))                // SET - bind to the `setActive` method below
-      .onGet(this.getActive.bind(this));               // GET - bind to the `getActive` method below
-
-    // Handle input source changes
-    this.tv.getCharacteristic(this.Characteristic.ActiveIdentifier)
-      .onSet(this.onSetActiveIdentifier.bind(this));
-
-    // Handle ConfiguredName changes
-    this.tv.getCharacteristic(this.Characteristic.ConfiguredName)
-      .onSet(async (value) => {
-        // Persist
-        await storage.setItem('ConfiguredName', value)
-      });
-
-    // Display modes
-    // Display name must not contain special characters like '(' and ')'
-    const modes = [
-      'Time Mode 1', 'Time Mode 2', 'Time Mode 3', 'Gyroscope', 'Saved Random',
-    ];
-    for (let i = 0; i < modes.length; i++) {
-      const mode = modes[i];
-
-      // Need to loop up the service by name due to the same type
-      const inputService = this.accessory.getService(mode) ||
-        // Here the mode.displayName is the default name of the input source
-        this.accessory.addService(this.Service.InputSource, mode, mode.replace(/ /g, '_'));
-
-      inputService
-        .setCharacteristic(this.Characteristic.Identifier, i)
-
-        // Not sure what this is
-        .setCharacteristic(this.Characteristic.Name, mode)
-
-        // ConfiguredName is read during setup and written when user set it
-        // Changing this value from here is not reliable. Experiment shows that it's not pulled by iOS when the
-        // TV is off. It's pulled at a very low frequency if the TV is on.
-        .setCharacteristic(this.Characteristic.ConfiguredName, mode)
-
-        // NOT_CONFIGURED makes the input source invisible
-        // It seems that IsConfigured is never set
-        .setCharacteristic(this.Characteristic.IsConfigured, this.Characteristic.IsConfigured.CONFIGURED)
-
-        .setCharacteristic(this.Characteristic.InputSourceType, this.Characteristic.InputSourceType.HDMI)
-        .setCharacteristic(this.Characteristic.CurrentVisibilityState, this.Characteristic.CurrentVisibilityState.SHOWN);
-
-      // Link to the tv service
-      this.tv.addLinkedService(inputService);
-    }
 
 
     /**
@@ -148,12 +99,79 @@ export class DivergenceMeterAccessory {
     // }, 10000);
   }
 
-  async onSetActiveIdentifier(value) {
-    this.log.debug('Set ActiveIdentifier -> ' + value);
-    // Apply action
-    await this.handleInputSource(value as number);
-    // Persist
-    await storage.setItem('ActiveIdentifier', value);
+  setupTVService() {
+    // Set the service name, this is what is displayed as the default name on the Home app
+    // Use the name we stored in the `accessory.context` in the `discoverDevices` method
+    this.tv.setCharacteristic(this.Characteristic.Name, this.config.name || 'Divergence Meter');
+
+    // https://developers.homebridge.io/#/service/Television
+
+    this.tv.setCharacteristic(this.Characteristic.SleepDiscoveryMode, this.Characteristic.SleepDiscoveryMode.ALWAYS_DISCOVERABLE);
+
+    // Register handlers for the Active Characteristic
+    this.tv.getCharacteristic(this.Characteristic.Active)
+      .onSet(this.setActive.bind(this))
+      .onGet(this.getActive.bind(this));
+
+    // Handle input source changes
+    this.tv.getCharacteristic(this.Characteristic.ActiveIdentifier)
+      .onSet(this.onSetActiveIdentifier.bind(this));
+
+    // Handle ConfiguredName changes
+    this.tv.getCharacteristic(this.Characteristic.ConfiguredName)
+      .onSet(async (value) => {
+        // Persist
+        await storage.setItem('ConfiguredName', value)
+      });
+  }
+
+  setupInputSources() {
+    // Add customized worldlines
+    if (this.config.worldlines) {
+      for (let i = 0; i < this.config.worldlines.length; i++) {
+        this.modes.push('Worldline ' + (i + 1));
+      }
+    }
+    this.log.debug("Modes:", this.modes);
+
+    // Clean up deleted input sources
+    const servicesToDelete: Service[] = [];
+    for (const service of this.accessory.services) {
+      if (service instanceof this.Service.InputSource && this.modes.indexOf(service.displayName) === -1) {
+        servicesToDelete.push(service);
+      }
+    }
+    for (const service of servicesToDelete) {
+      this.accessory.removeService(service);
+    }
+    this.log.debug("servicesToDelete:", servicesToDelete);
+
+    // Add input sources
+    for (let i = 0; i < this.modes.length; i++) {
+      const mode = this.modes[i];
+
+      // Need to loop up the service by name due to the same type
+      const inputService = this.accessory.getService(mode) ||
+        // Here the mode.displayName is the default name of the input source
+        this.accessory.addService(this.Service.InputSource, mode, mode.replace(/ /g, '_'));
+
+      inputService
+        .setCharacteristic(this.Characteristic.Identifier, i)
+
+        .setCharacteristic(this.Characteristic.Name, mode)
+
+        // NOT_CONFIGURED makes the input source invisible
+        // It seems that IsConfigured is never set
+        .setCharacteristic(this.Characteristic.IsConfigured, this.Characteristic.IsConfigured.CONFIGURED)
+
+        .setCharacteristic(this.Characteristic.InputSourceType, this.Characteristic.InputSourceType.HDMI)
+        .setCharacteristic(this.Characteristic.CurrentVisibilityState, this.Characteristic.CurrentVisibilityState.SHOWN);
+
+      // ConfiguredName is set async in setCharacteristicsFromStorage below
+
+      // Link to the tv service
+      this.tv.addLinkedService(inputService);
+    }
   }
 
   async setCharacteristicsFromStorage() {
@@ -161,6 +179,25 @@ export class DivergenceMeterAccessory {
     this.tv.updateCharacteristic(this.Characteristic.ConfiguredName, await storage.getItem('ConfiguredName') || 'Divergence Meter');
     this.tv.updateCharacteristic(this.Characteristic.Active, await storage.getItem('Active') || this.Characteristic.Active.INACTIVE);
     this.tv.updateCharacteristic(this.Characteristic.ActiveIdentifier, await storage.getItem('ActiveIdentifier') || 0);
+    for (let i = 0; i < this.modes.length; i++) {
+      const mode = this.modes[i];
+      const inputService = this.accessory.getService(mode)!;
+      const persistKey = mode + ' ConfiguredName';
+      inputService.setCharacteristic(this.Characteristic.ConfiguredName, await storage.getItem(persistKey) || mode);
+      inputService.getCharacteristic(this.Characteristic.ConfiguredName)
+        .onSet(async (value) => {
+          // Persist
+          await storage.setItem(persistKey, value);
+        });
+    }
+  }
+
+  async onSetActiveIdentifier(value) {
+    this.log.debug('Set ActiveIdentifier -> ' + value);
+    // Apply action
+    await this.handleInputSource(value as number);
+    // Persist
+    await storage.setItem('ActiveIdentifier', value);
   }
 
   async handleInputSource(mode: number) {
@@ -173,10 +210,6 @@ export class DivergenceMeterAccessory {
     }
   }
 
-  /**
-   * Handle "SET" requests from HomeKit
-   * These are sent when the user changes the state of an accessory, for example, turning on a Light bulb.
-   */
   async setActive(value: CharacteristicValue) {
     this.log.debug('Set Active ->', value);
 
