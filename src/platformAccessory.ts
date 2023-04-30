@@ -101,7 +101,6 @@ export class DivergenceMeterAccessory {
 
   setupTVService() {
     // Set the service name, this is what is displayed as the default name on the Home app
-    // Use the name we stored in the `accessory.context` in the `discoverDevices` method
     this.tv.setCharacteristic(this.Characteristic.Name, this.config.name || 'Divergence Meter');
 
     // https://developers.homebridge.io/#/service/Television
@@ -110,8 +109,8 @@ export class DivergenceMeterAccessory {
 
     // Register handlers for the Active Characteristic
     this.tv.getCharacteristic(this.Characteristic.Active)
-      .onSet(this.setActive.bind(this))
-      .onGet(this.getActive.bind(this));
+      .onSet(this.onSetActive.bind(this))
+      .onGet(this.onGetActive.bind(this));
 
     // Handle input source changes
     this.tv.getCharacteristic(this.Characteristic.ActiveIdentifier)
@@ -132,7 +131,7 @@ export class DivergenceMeterAccessory {
         this.modes.push('Worldline ' + (i + 1));
       }
     }
-    this.log.debug("Modes:", this.modes);
+    this.log.debug('Modes:', this.modes);
 
     // Clean up deleted input sources
     const servicesToDelete: Service[] = [];
@@ -144,7 +143,7 @@ export class DivergenceMeterAccessory {
     for (const service of servicesToDelete) {
       this.accessory.removeService(service);
     }
-    this.log.debug("servicesToDelete:", servicesToDelete);
+    this.log.debug('servicesToDelete:', servicesToDelete);
 
     // Add input sources
     for (let i = 0; i < this.modes.length; i++) {
@@ -157,7 +156,6 @@ export class DivergenceMeterAccessory {
 
       inputService
         .setCharacteristic(this.Characteristic.Identifier, i)
-
         .setCharacteristic(this.Characteristic.Name, mode)
 
         // NOT_CONFIGURED makes the input source invisible
@@ -192,6 +190,26 @@ export class DivergenceMeterAccessory {
     }
   }
 
+  async handleInputSource(mode: number) {
+    if (mode in [0, 1, 2]) {  // Time Mode 1-3
+      this.meter.timeMode(mode);
+    } else if (mode === 3) {  // Gyro Mode
+      this.meter.gyroMode();
+    } else if (mode === 4) {  // Saved Random
+      // Use original worldline 3
+      // TODO:
+    } else if (mode <= 6) {  // Worldline 1 & 2
+      // Use original worldline 1 & 2
+      this.meter.worldlineMode(mode - 5, this.config.worldlines[mode - 5]);
+    } else if (mode <= 9) {  // Worldline 3-5
+      // Use original worldline 5 - 7
+      this.meter.worldlineMode(mode - 3, this.config.worldlines[mode - 5]);
+    } else {  // Worldline 6+
+      // Use original worldline 8
+      this.meter.worldlineMode(7, this.config.worldlines[mode - 5]);
+    }
+  }
+
   async onSetActiveIdentifier(value) {
     this.log.debug('Set ActiveIdentifier -> ' + value);
     // Apply action
@@ -200,17 +218,7 @@ export class DivergenceMeterAccessory {
     await storage.setItem('ActiveIdentifier', value);
   }
 
-  async handleInputSource(mode: number) {
-    if (mode in [0, 1, 2]) {
-      this.meter.timeMode(mode);
-    } else if (mode === 3) {
-      this.meter.gyroMode();
-    } else if (mode === 4) {
-      // TODO:
-    }
-  }
-
-  async setActive(value: CharacteristicValue) {
+  async onSetActive(value: CharacteristicValue) {
     this.log.debug('Set Active ->', value);
 
     if (value) {
@@ -223,20 +231,7 @@ export class DivergenceMeterAccessory {
     await storage.setItem('Active', value);
   }
 
-  /**
-   * Handle the "GET" requests from HomeKit
-   * These are sent when HomeKit wants to know the current state of the accessory, for example, checking if a Light bulb is on.
-   *
-   * GET requests should return as fast as possbile. A long delay here will result in
-   * HomeKit being unresponsive and a bad user experience in general.
-   *
-   * If your device takes time to respond you should update the status of your device
-   * asynchronously instead using the `updateCharacteristic` method instead.
-
-   * @example
-   * this.service.updateCharacteristic(this.Characteristic.On, true)
-   */
-  async getActive(): Promise<CharacteristicValue> {
+  async onGetActive(): Promise<CharacteristicValue> {
     // implement your own code to check if the device is on
     const isOn = this.tv.getCharacteristic(this.Characteristic.Active).value || false;
     this.log.debug('Get Active, isOn =', isOn);
