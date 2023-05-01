@@ -1,8 +1,8 @@
 import noble, {Peripheral, Characteristic} from '@abandonware/noble';
 import {Logger} from 'homebridge';
 
-const SERVICE_UUID = '0000ffe0-0000-1000-8000-00805f9b34fb';
-const CHARACTERISTIC_UUID = '0000ffe1-0000-1000-8000-00805f9b34fb';
+const SERVICE_UUID = 'ffe0';
+const CHARACTERISTIC_UUID = 'ffe1';
 const PERIPHERAL_NAME = 'Divergence';
 
 export class DivergenceMeter {
