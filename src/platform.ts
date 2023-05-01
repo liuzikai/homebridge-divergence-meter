@@ -8,7 +8,7 @@ import {
   Characteristic,
 } from 'homebridge';
 
-import {PLATFORM_NAME, PLUGIN_NAME} from './settings';
+import {PLUGIN_NAME} from './settings';
 import {DivergenceMeterAccessory} from './platformAccessory';
 
 /**

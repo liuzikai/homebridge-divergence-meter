@@ -1,8 +1,14 @@
 import noble, {Peripheral, Characteristic} from '@abandonware/noble';
 import {Logger} from 'homebridge';
 
+// Linux
 const SERVICE_UUID = 'ffe0';
 const CHARACTERISTIC_UUID = 'ffe1';
+
+// macOS
+// const SERVICE_UUID = '0000ffe0-0000-1000-8000-00805f9b34fb';
+// const CHARACTERISTIC_UUID = '0000ffe1-0000-1000-8000-00805f9b34fb';
+
 const PERIPHERAL_NAME = 'Divergence';
 
 export class DivergenceMeter {
@@ -15,6 +21,7 @@ export class DivergenceMeter {
     public readonly log: Logger,
     private scanningRestartDelay: number,
   ) {
+    this.log.debug('scanningRestartDelay = ' + scanningRestartDelay);
     noble.on('stateChange', this.onNobleStateChange.bind(this));
     noble.on('discover', this.onDiscoverPeripheral.bind(this));
     noble.on('scanStart', this.onNobleScanStart.bind(this));
@@ -125,7 +132,7 @@ export class DivergenceMeter {
     }
 
     // No callback, or one new callback is registered every time
-    this.characteristic.write(data, false)
+    this.characteristic.write(data, false);
   }
 
   public sendCommand(command: string) {
@@ -159,7 +166,7 @@ export class DivergenceMeter {
     } else if (mode === 1) {
       this.sendCommand('#411'); // 0.HHMMSS
     } else if (mode === 2) {
-      this.sendCommand('#412'); // HHMMSS.uS
+      this.sendCommand('#412'); // HHMMSS.MS
     }
     this.sendCommand('#430');
   }
@@ -186,7 +193,7 @@ export class DivergenceMeter {
 
   getFormattedTime(): string {
     const now = new Date();
-    return now.toISOString().replace(/[-:.T]/g, "").substr(0, 14);
+    return now.toISOString().replace(/[-:.T]/g, '').substr(0, 14);
   }
 
   public syncTime() {
