@@ -21,6 +21,7 @@ export class DivergenceMeter {
     });
 
     noble.on('discover', peripheral => {
+      this.log.debug(`Discover ${peripheral.advertisement.localName}!`);
       if (peripheral.advertisement.localName === PERIPHERAL_NAME) {
         this.log.info(`Found ${PERIPHERAL_NAME}!`);
         noble.stopScanning();
@@ -53,6 +54,16 @@ export class DivergenceMeter {
           noble.startScanning([SERVICE_UUID], false);
         });
       }
+    });
+
+    noble.on("scanStart", () => {
+      this.log.debug("Started scanning.");
+    });
+    noble.on("scanStop", () => {
+      this.log.debug("Stopped scanning.");
+    });
+    noble.on("warning", (message) => {
+      this.log.info("Warning: ", message);
     });
   }
 
