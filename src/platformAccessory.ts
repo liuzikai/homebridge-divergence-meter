@@ -35,7 +35,7 @@ export class DivergenceMeterAccessory {
     this.savedRandom = '0.000000';  // may be overwritten by loadPersistentStorage()
 
     // Create the BLE backend
-    this.meter = new DivergenceMeter(this.log);
+    this.meter = new DivergenceMeter(this.log, this.config.scanningRestartDelay || 3000);
 
     // Set accessory information
     this.accessory.getService(this.Service.AccessoryInformation)!

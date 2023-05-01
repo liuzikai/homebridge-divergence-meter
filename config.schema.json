@@ -11,6 +11,13 @@
         "required": true,
         "default": "Divergence Meter"
       },
+      "scanningRestartDelay": {
+        "title": "BLE Scanning Restart Delay",
+        "type": "integer",
+        "minimum": 1,
+        "default": 3000,
+        "description": "BLE scanning may be interrupted (e.g. when another plugin is using BLE as well). In this case, you may want to set the restart interval to be NOT a integer multiple of those of the other plugins, in order to avoid detect lock."
+      },
       "use24H": {
         "title": "Use 24H for Time Display",
         "type": "boolean",
