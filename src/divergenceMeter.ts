@@ -70,7 +70,7 @@ export class DivergenceMeter {
 
   setDisconnectedAndStartScanning() {
     if (this.peripheral) {
-      this.peripheral.removeAllListeners('disconnect');  // clear the disconnect handler
+      this.peripheral.removeAllListeners();  // clear the disconnect handler
     }
     this.peripheral = null;
     this.startScanning();
@@ -79,7 +79,7 @@ export class DivergenceMeter {
   onDiscoverPeripheral(peripheral: Peripheral) {
     // this.log.debug(`Discovered ${peripheral.advertisement.localName}`);
 
-    if (!this.isScanning) {
+    if (!this.isScanning || this.peripheral !== null) {
       return;  // the other plugins may keep scanning, just ignore and do not interrupt
     }
 
