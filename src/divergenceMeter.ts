@@ -11,7 +11,8 @@ const SERVICE_UUIDS = 'ffe0';
 export class DivergenceMeter {
   private peripheral: Peripheral | null = null;
   private isScanning = false;
-  private isActuallyScanning = false;
+  // private isActuallyScanning = false;
+  private reconnectTimeout: NodeJS.Timeout | null = null;
 
   constructor(
     public readonly log: Logger,
@@ -42,10 +43,11 @@ export class DivergenceMeter {
 
   onNobelScanStop() {
     this.log.debug('On scanStop (this app or another app)');
-    this.isActuallyScanning = false;
-    if (this.isScanning) {  // still scanning, not stop by this plugin
+    // this.isActuallyScanning = false;
+    if (this.isScanning && this.reconnectTimeout === null) {  // still scanning, not stop by this plugin, and no timeout issued
       this.log.debug(`Decided to start scanning after ${this.scanningRestartDelay} ms`);
-      setTimeout(() => {
+      this.reconnectTimeout = setTimeout(() => {
+        this.reconnectTimeout = null;
         this.startScanning();
       }, this.scanningRestartDelay);
     }
@@ -53,7 +55,7 @@ export class DivergenceMeter {
 
   onNobleScanStart() {
     this.log.debug('On scanStart (this app or another app)');
-    this.isActuallyScanning = true;
+    // this.isActuallyScanning = true;
   }
 
   startScanning() {
@@ -196,9 +198,9 @@ export class DivergenceMeter {
 
   public set12Or24H(use24H: boolean) {
     if (use24H) {
-      this.sendCommand('#400');
-    } else {
       this.sendCommand('#401');
+    } else {
+      this.sendCommand('#400');
     }
   }
 
