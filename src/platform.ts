@@ -58,7 +58,7 @@ export class DivergenceMeterPlatform implements DynamicPlatformPlugin {
    */
   discoverDevice() {
     const displayName = 'Divergence Meter';
-    const uuid = this.api.hap.uuid.generate('homebridge:divergence-meter');
+    const uuid = this.api.hap.uuid.generate('homebridge:divergence-meter0');
 
     // See if an accessory with the same uuid has already been registered and restored from
     // the cached devices we stored in the `configureAccessory` method above

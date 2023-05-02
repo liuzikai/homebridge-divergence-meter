@@ -128,7 +128,13 @@ export class DivergenceMeter {
       throw new this.api.hap.HapStatusError(this.api.hap.HAPStatus.SERVICE_COMMUNICATION_FAILURE);
       // Should already be scanning, no need to restart
     }
-    this.peripheral.writeHandle(HANDLE, data, false, () => null);
+    this.peripheral.writeHandle(HANDLE, data, false, this.writeHandleCallback.bind(this));
+  }
+
+  private writeHandleCallback(error: string) {
+    if (error) {
+      this.log.warn(`writeHandle failed: ${error}`);
+    }
   }
 
   public sendCommand(command: string) {

@@ -22,31 +22,31 @@
         "type": "boolean",
         "default": "true"
       },
-      "auto_off": {
+      "autoOff": {
         "title": "Auto Off",
         "type": "boolean",
         "default": "true",
         "description": "If enabled, turn off the Divergence Meter after sometime since the last operation (turning on, changing mode, etc.)"
       },
-      "auto_off_time": {
-        "title": "Auto-Off After (Minutes)",
+      "autoOffTime": {
+        "title": "Auto-Off After (Seconds)",
         "type": "integer",
         "minimum": 1,
-        "default": 5
+        "default": 300
       },
-      "random_switch_name": {
+      "randomSwitchName": {
         "title": "Random Worldline Switch Accessory Name",
         "type": "string",
         "default": "Random Worldline",
         "description": "Turn on the switch to start randomization. Turn off to settle."
       },
-      "random_min": {
+      "randomMin": {
         "title": "Controlled Random Min",
         "type": "number",
         "default": "0.000000",
         "description": "Do you know how a negativedivergence value is displayed? Try it out"
       },
-      "random_max": {
+      "randomMax": {
         "title": "Controlled Random Max",
         "type": "number",
         "default": "0.999999"

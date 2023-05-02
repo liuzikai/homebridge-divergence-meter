@@ -1,6 +1,7 @@
 import {Service, PlatformAccessory, CharacteristicValue, Logger, Characteristic, PlatformConfig} from 'homebridge';
 import {DivergenceMeterPlatform} from './platform';
 import {DivergenceMeter} from './divergenceMeter';
+import {AutoOffTimer} from './autoOffTimer';
 import storage from 'node-persist';
 import path from 'path';
 
@@ -23,6 +24,7 @@ export class DivergenceMeterAccessory {
   ];
 
   private meter: DivergenceMeter;
+  private timer: AutoOffTimer | null;
 
   private savedRandom: string;
 
@@ -37,6 +39,18 @@ export class DivergenceMeterAccessory {
     // Create the BLE backend
     this.meter = new DivergenceMeter(this.log, this.platform.api, this.config.scanningRestartDelay || 2000);
 
+    // Create the auto-off timer
+    const {
+      autoOff = false,
+      autoOffTime = 300,
+    } = this.config;
+    if (autoOff) {
+      this.log.debug(`Enable auto-off of ${autoOffTime} seconds`);
+      this.timer = new AutoOffTimer(autoOffTime, this.onAutoOffTimeout.bind(this));
+    } else {
+      this.timer = null;
+    }
+
     // Set accessory information
     this.accessory.getService(this.Service.AccessoryInformation)!
       .setCharacteristic(this.Characteristic.Manufacturer, 'Sadudu')
@@ -50,6 +64,7 @@ export class DivergenceMeterAccessory {
 
     // Random button
     this.rand = this.accessory.getService(this.Service.Switch) || this.accessory.addService(this.Service.Switch);
+    this.rand.setCharacteristic(this.Characteristic.Name, this.config.randomSwitchName || 'Random Worldline');
     this.rand.setCharacteristic(this.Characteristic.On, false);
     this.rand.getCharacteristic(this.Characteristic.On)
       .onSet(this.onRandSetOn.bind(this));
@@ -58,7 +73,7 @@ export class DivergenceMeterAccessory {
     this.loadPersistentStorage().then();
   }
 
-  setupTVService() {
+  private setupTVService() {
     // Set the service name, this is what is displayed as the default name on the Home app
     this.tv.setCharacteristic(this.Characteristic.Name, this.config.name || 'Divergence Meter');
 
@@ -83,7 +98,7 @@ export class DivergenceMeterAccessory {
       });
   }
 
-  setupInputSources() {
+  private setupInputSources() {
     // Add customized worldlines
     if (this.config.worldlines) {
       for (let i = 0; i < this.config.worldlines.length; i++) {
@@ -131,7 +146,7 @@ export class DivergenceMeterAccessory {
     }
   }
 
-  async loadPersistentStorage() {
+  private async loadPersistentStorage() {
     await storage.init({dir: path.join(this.platform.api.user.storagePath(), 'divergence')});
     this.savedRandom = await storage.getItem('savedRandom') || '0.000000';
     this.tv.updateCharacteristic(this.Characteristic.ConfiguredName, await storage.getItem('ConfiguredName') || 'Divergence Meter');
@@ -150,7 +165,7 @@ export class DivergenceMeterAccessory {
     }
   }
 
-  async handleInputSource(mode: number) {
+  private async handleInputSource(mode: number) {
     if (mode in [0, 1, 2]) {  // Time Mode 1-3
       this.meter.timeMode(mode);
     } else if (mode === 3) {  // Gyro Mode
@@ -168,14 +183,17 @@ export class DivergenceMeterAccessory {
       // Use original worldline 8
       this.meter.worldlineMode(7, this.config.worldlines[mode - 5]);
     }
+    if (this.timer) {
+      this.timer.start();
+    }
   }
 
-  controlledRandomFloat(): number {
-    const {random_min, random_max} = this.config;
-    return Math.random() * (random_max - random_min) + random_min;
+  private controlledRandomFloat(): number {
+    const {randomMin, randomMax} = this.config;
+    return Math.random() * (randomMax - randomMin) + randomMin;
   }
 
-  convertFloatToWorldline(x: number): string {
+  private convertFloatToWorldline(x: number): string {
     const y = x >= 0 ? x : -x;  // abs
     let s = y.toFixed(8);  // extend as much as possible
     s = s.slice(0, 8);
@@ -199,7 +217,7 @@ export class DivergenceMeterAccessory {
     }
   }
 
-  async onSetActiveIdentifier(value) {
+  private async onSetActiveIdentifier(value) {
     this.log.debug('Set ActiveIdentifier -> ' + value);
     // Apply action
     await this.handleInputSource(value as number);
@@ -207,46 +225,72 @@ export class DivergenceMeterAccessory {
     await storage.setItem('ActiveIdentifier', value);
   }
 
-  async onSetActive(value: CharacteristicValue) {
+  private async onSetActive(value: CharacteristicValue) {
     this.log.debug('Set Active ->', value);
 
     if (value) {
       await this.handleInputSource(this.tv.getCharacteristic(this.Characteristic.ActiveIdentifier).value as number);
     } else {
       this.meter.turnOff();
+      // If throw an error, return, timer will not stop, as expected (will retry later)
+      if (this.timer) {
+        this.timer.stop();
+      }
     }
 
     // Persist
     await storage.setItem('Active', value);
   }
 
-  async onGetActive(): Promise<CharacteristicValue> {
+  private async onGetActive(): Promise<CharacteristicValue> {
     // implement your own code to check if the device is on
     const isOn = this.tv.getCharacteristic(this.Characteristic.Active).value || false;
     this.log.debug('Get Active, isOn =', isOn);
 
     if (!this.meter.isConnectedToPeripheral()) {
+      this.log.debug('Get Active, no response');
       // show the device as "Not Responding" in the Home app
       throw new this.platform.api.hap.HapStatusError(this.platform.api.hap.HAPStatus.SERVICE_COMMUNICATION_FAILURE);
     }
     return isOn;
   }
 
-  async onRandSetOn(value: CharacteristicValue) {
+  private async onRandSetOn(value: CharacteristicValue) {
     const isOn = value as boolean;
     this.log.debug('Rand set On ->', isOn);
-    if (this.tv.getCharacteristic(this.Characteristic.ActiveIdentifier).value === 4) {
-      // Saved Random
-      if (isOn) {
-        this.meter.randomMode(true);
-      } else {
+    if (isOn) {
+      this.meter.randomMode(true);
+      if (this.timer) {
+        this.timer.start();
+      }
+
+      // Turn on if not
+      this.tv.updateCharacteristic(this.Characteristic.Active, this.Characteristic.Active.ACTIVE);
+    } else {
+      if (this.tv.getCharacteristic(this.Characteristic.ActiveIdentifier).value === 4) {
+        // Saved Random
         this.savedRandom = this.convertFloatToWorldline(this.controlledRandomFloat());
         this.log.debug('this.savedRandom =', this.savedRandom);
         await this.handleInputSource(4);
         await storage.setItem('savedRandom', this.savedRandom);
+      } else {
+        // Random random
+        this.meter.randomMode(false);
+        if (this.timer) {
+          this.timer.start();
+        }
       }
-    } else {
-      this.meter.randomMode(isOn);
+    }
+  }
+
+  private onAutoOffTimeout(): number {
+    try {
+      this.log.debug('Time up! Turn off');
+      this.meter.turnOff();
+      return 0;
+    } catch (e) {
+      this.log.warn(`Failed to turn off: ${e}, retry after 10s`);
+      return 10;
     }
   }
 
