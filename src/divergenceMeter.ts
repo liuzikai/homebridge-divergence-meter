@@ -108,6 +108,7 @@ export class DivergenceMeter {
       } else {
         this.log.info(`Connected to ${PERIPHERAL_NAME}`);
         this.peripheral = peripheral;
+        this.peripheral.once('disconnect', this.onPeripheralDisconnect.bind(this));
       }
     });
   }
