@@ -44,7 +44,7 @@ export class DivergenceMeter {
     this.log.debug('On scanStop (this app or another app)');
     this.isActuallyScanning = false;
     if (this.isScanning) {  // still scanning, not stop by this plugin
-      this.log.debug('Decided to start scanning after some time');
+      this.log.debug(`Decided to start scanning after ${this.scanningRestartDelay} ms`);
       setTimeout(() => {
         this.startScanning();
       }, this.scanningRestartDelay);

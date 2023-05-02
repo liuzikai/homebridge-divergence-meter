@@ -24,9 +24,11 @@ export class DivergenceMeterAccessory {
   ];
 
   private meter: DivergenceMeter;
-  private timer: AutoOffTimer | null;
+  private readonly timer: AutoOffTimer | null;
 
   private savedRandom: string;
+  private hasSet12Or24Hour = false;
+  private lastSyncTime: Date | null = null;
 
   constructor(
     private readonly platform: DivergenceMeterPlatform,
@@ -167,6 +169,20 @@ export class DivergenceMeterAccessory {
 
   private async handleInputSource(mode: number) {
     if (mode in [0, 1, 2]) {  // Time Mode 1-3
+      if (!this.hasSet12Or24Hour) {
+        const use24H = this.config.use24H || true;
+        this.log.info(`Set 24H: ${use24H}`);
+        this.meter.set12Or24H(use24H);
+        this.hasSet12Or24Hour = true;
+      }
+
+      const now = new Date();
+      if (this.lastSyncTime === null || now.getTime() - this.lastSyncTime.getTime() >= 24 * 60 * 60 * 1000) {
+        this.log.info('Sync time');
+        this.lastSyncTime = now;
+        this.meter.syncTime();
+      }
+
       this.meter.timeMode(mode);
     } else if (mode === 3) {  // Gyro Mode
       this.meter.gyroMode();
