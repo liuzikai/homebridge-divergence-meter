@@ -1,7 +1,7 @@
-import noble, { Peripheral, Characteristic } from '@abandonware/noble';
-import { Logger, API } from 'homebridge';
+import noble, {Peripheral} from '@abandonware/noble';
+import {Logger, API} from 'homebridge';
 
-// Characteristics does not work if another plugin (homebridge-mi-hygrothermograph) 
+// Characteristics does not work if another plugin (homebridge-mi-hygrothermograph)
 // uses noble as well. Not sure why.
 const HANDLE = 5;
 
@@ -119,7 +119,7 @@ export class DivergenceMeter {
     if (!this.peripheral) {
       this.log.warn(`Cannot write to ${PERIPHERAL_NAME}: not connected`);
       throw new this.api.hap.HapStatusError(this.api.hap.HAPStatus.SERVICE_COMMUNICATION_FAILURE);
-      // Should already be scanning, 
+      // Should already be scanning, no need to restart
     }
     this.peripheral.writeHandle(HANDLE, data, false, () => null);
   }
