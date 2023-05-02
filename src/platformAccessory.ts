@@ -39,7 +39,7 @@ export class DivergenceMeterAccessory {
     this.savedRandom = '0.000000';  // may be overwritten by loadPersistentStorage()
 
     // Create the BLE backend
-    this.meter = new DivergenceMeter(this.log, this.platform.api, this.config.scanningRestartDelay || 2000);
+    this.meter = new DivergenceMeter(this.log, this.platform.api, this.config.scanningRestartDelay || 10000);
 
     // Create the auto-off timer
     const {

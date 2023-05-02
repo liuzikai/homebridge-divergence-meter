@@ -15,7 +15,7 @@
         "title": "BLE Scanning Restart Delay",
         "type": "integer",
         "minimum": 1,
-        "default": 2000
+        "default": 10000
       },
       "use24H": {
         "title": "Use 24H for Time Display",

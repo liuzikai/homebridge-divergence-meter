@@ -1,5 +1,5 @@
-import noble, {Peripheral} from '@abandonware/noble';
-import {Logger, API} from 'homebridge';
+import noble, { Peripheral } from '@abandonware/noble';
+import { Logger, API } from 'homebridge';
 
 // Characteristics does not work if another plugin (homebridge-mi-hygrothermograph)
 // uses noble as well. Not sure why.
@@ -57,15 +57,19 @@ export class DivergenceMeter {
   }
 
   startScanning() {
-    if (!this.peripheral && !this.isActuallyScanning) {
-      this.log.info(`Start scanning for ${PERIPHERAL_NAME}...`);
-      this.isScanning = true;
-      noble.startScanning([], false);
-    } else {
-      this.log.debug('Already connected or scanning already actually started');
+    if (this.peripheral !== null) {
+      this.log.debug('Not actually start scanning: already connected');
+      return;
+    }
+    this.isScanning = true;
+    /* if (!this.isActuallyScanning) {
       // Do not call startScanning if scanning is actually started (may by other plugin)
       // Or we can stumble ourselves, like interrupting the connection
-    }
+      this.log.debug('Not actually start scanning: already scanning');
+      return;
+    } */
+    this.log.info(`Start scanning for ${PERIPHERAL_NAME}...`);
+    noble.startScanning([], false);
   }
 
   setDisconnectedAndStartScanning() {
@@ -101,16 +105,21 @@ export class DivergenceMeter {
     // this will interrupt the connect process and trigger livelock.
     // noble.stopScanning();
 
-    peripheral.connect(error => {
-      if (error) {
-        this.log.error(`Failed to connect: ${error}`);
-        this.setDisconnectedAndStartScanning();
-      } else {
-        this.log.info(`Connected to ${PERIPHERAL_NAME}`);
-        this.peripheral = peripheral;
-        this.peripheral.once('disconnect', this.onPeripheralDisconnect.bind(this));
-      }
-    });
+    try {
+      peripheral.connect(error => {
+        if (error) {
+          this.log.error(`Failed to connect: ${error}`);
+          this.setDisconnectedAndStartScanning();
+        } else {
+          this.log.info(`Connected to ${PERIPHERAL_NAME}`);
+          this.peripheral = peripheral;
+          this.peripheral.once('disconnect', this.onPeripheralDisconnect.bind(this));
+        }
+      });
+    } catch (error) {
+      this.log.error(`Failed to connect: ${error}`);
+      this.setDisconnectedAndStartScanning();
+    }
   }
 
   onPeripheralDisconnect() {
