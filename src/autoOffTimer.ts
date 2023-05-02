@@ -28,10 +28,11 @@ export class AutoOffTimer {
 
   private tick() {
     if (this.remainingTime <= 0) {
-      this.stop();
       const res = this.onEndCallback();
       if (res > 0) {
         this.remainingTime = res;  // retry after this time
+      } else {
+        this.stop();
       }
     }
     this.remainingTime--;

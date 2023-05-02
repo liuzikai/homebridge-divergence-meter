@@ -70,7 +70,7 @@ export class DivergenceMeter {
 
   setDisconnectedAndStartScanning() {
     if (this.peripheral) {
-      this.peripheral.once('disconnect', () => null);  // clear the disconnect handler
+      this.peripheral.removeAllListeners('disconnect');  // clear the disconnect handler
     }
     this.peripheral = null;
     this.startScanning();
