@@ -6,6 +6,7 @@ import {Logger, API} from 'homebridge';
 const HANDLE = 5;
 
 const PERIPHERAL_NAME = 'Divergence';
+const SERVICE_UUIDS = 'ffe0';
 
 export class DivergenceMeter {
   private peripheral: Peripheral | null = null;
@@ -63,7 +64,7 @@ export class DivergenceMeter {
     } else {
       this.log.debug('Already connected or scanning already actually started');
       // Do not call startScanning if scanning is actually started (may by other plugin)
-      // Or we can stumble ourself, like interrupting the connection
+      // Or we can stumble ourselves, like interrupting the connection
     }
   }
 
@@ -86,6 +87,11 @@ export class DivergenceMeter {
       return;
     }
     this.log.info(`Found ${PERIPHERAL_NAME}`);
+    this.log.debug(`peripheral = ${peripheral}`);
+    if (peripheral.advertisement.serviceUuids.length !== 1 || peripheral.advertisement.serviceUuids[0] !== SERVICE_UUIDS) {
+      this.log.info(`Found ${PERIPHERAL_NAME} but services does not match: ${peripheral.advertisement.serviceUuids}`);
+      return;
+    }
 
     // At this stage, we have the PERIPHERAL_NAME and the SERVICE_UUID matched.
     // Set this at early stage, to avoid re-discovering the peripheral and interfer each other
