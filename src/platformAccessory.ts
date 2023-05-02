@@ -302,8 +302,7 @@ export class DivergenceMeterAccessory {
   private onAutoOffTimeout(): number {
     try {
       this.log.debug('Time up! Try to turn off');
-      this.meter.turnOff();
-      this.tv.updateCharacteristic(this.Characteristic.Active, this.Characteristic.Active.INACTIVE);
+      this.tv.setCharacteristic(this.Characteristic.Active, this.Characteristic.Active.INACTIVE);  // trigger onSet
       return 0;
     } catch (e) {
       this.log.warn(`Failed to turn off: ${e}`);

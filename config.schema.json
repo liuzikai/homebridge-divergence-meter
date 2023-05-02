@@ -2,6 +2,7 @@
   "pluginAlias": "DivergenceMeter",
   "pluginType": "platform",
   "singular": true,
+  "headerDisplay": "Before using this plugin, please read [the instruction](https://github.com/liuzikai/homebridge-divergence-meter#readme).\n\nAs both this plugin and the WeChat mini program use the same BLE protocol, only one of them can connect at the same time (as long as this plugin is enabled and started, even if the accessory is not added to Home).\n\n Due to the lack of read-back interface, this plugin can be out-of-sync with the actual device. It is not aware of external changes: turning on/off physically, pressing the physical buttons, or changes made by the mini program. In those cases, auto-off will not work, and the accessory status may be out-of-sync.",
   "schema": {
     "type": "object",
     "properties": {
@@ -10,12 +11,6 @@
         "type": "string",
         "required": true,
         "default": "Divergence Meter"
-      },
-      "scanningRestartDelay": {
-        "title": "BLE Scanning Restart Delay",
-        "type": "integer",
-        "minimum": 1,
-        "default": 10000
       },
       "use24H": {
         "title": "Use 24H for Time Display",
@@ -44,7 +39,7 @@
         "title": "Controlled Random Min",
         "type": "number",
         "default": "0.000000",
-        "description": "Do you know how a negativedivergence value is displayed? Try it out"
+        "description": "Do you know how a negative divergence value is displayed? Try it out"
       },
       "randomMax": {
         "title": "Controlled Random Max",
@@ -61,7 +56,15 @@
           "maxLength": 8,
           "required": true,
           "default": "0.000000"
-        }
+        },
+        "description": "Physical worldline buttons on the meter are updated once the corresponding worldlines are set once (but remember that this plugin is not aware of physical actions). The first two customized worldlines are assigned to physical worlind button 1 and 2. Button 3 is the saved random. Button 4 is software off."
+      },
+      "scanningRestartDelay": {
+        "title": "BLE Scanning Restart Delay (ms)",
+        "type": "integer",
+        "minimum": 1,
+        "default": 10000,
+        "description": "When multiple plugins use BLE, they may interfere with each other. If that is the case, try increasing this number."
       }
     }
   }
