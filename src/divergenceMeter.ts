@@ -1,5 +1,5 @@
-import noble, {Peripheral, Characteristic} from '@abandonware/noble';
-import {Logger} from 'homebridge';
+import noble, { Peripheral, Characteristic } from '@abandonware/noble';
+import { Logger, API } from 'homebridge';
 
 // Linux
 const SERVICE_UUID = 'ffe0';
@@ -14,11 +14,13 @@ const PERIPHERAL_NAME = 'Divergence';
 export class DivergenceMeter {
   private characteristic: Characteristic | null = null;
   private peripheral: Peripheral | null = null;
-  private hasStartedScanning = false;
+  private isScanning = false;
+  private isActuallyScanning = false;
   private isConnected = false;
 
   constructor(
     public readonly log: Logger,
+    public readonly api: API,
     private scanningRestartDelay: number,
   ) {
     this.log.debug('scanningRestartDelay = ' + scanningRestartDelay);
@@ -34,7 +36,7 @@ export class DivergenceMeter {
       this.startScanning();
     } else {
       this.log.info(`Noble state changed to ${state}`);
-      this.hasStartedScanning = false;
+      this.isScanning = false;
       noble.stopScanning();
     }
   }
@@ -45,74 +47,94 @@ export class DivergenceMeter {
 
   onNobelScanStop() {
     this.log.debug('On scanStop (this app or another app)');
-    if (this.hasStartedScanning && !this.peripheral) {
+    this.isActuallyScanning = false;
+    if (this.isScanning) {  // still scanning, not stop by this plugin
+      this.log.debug('Decided to continue scanning');
       setTimeout(() => {
-        this.log.info('Restart scanning');
-        this.startScanning();
+          this.startScanning();
       }, this.scanningRestartDelay);
     }
   }
 
   onNobleScanStart() {
     this.log.debug('On scanStart (this app or another app)');
+    this.isActuallyScanning = true;
   }
 
   startScanning() {
-    this.log.info(`Start scanning for ${PERIPHERAL_NAME}...`);
-    this.hasStartedScanning = true;
-    noble.startScanning([SERVICE_UUID], false);
+    if (!this.isActuallyScanning) {
+      this.log.info(`Start scanning for ${PERIPHERAL_NAME}...`);
+      this.isScanning = true;
+      noble.startScanning([], false);
+    } else {
+      this.log.debug('Scanning already actually started');
+      // Do not call startScanning if scanning is actually started (may by other plugin)
+      // Or we can stumble ourself, like interrupting the connection
+    }
+  }
+
+  setDisconnectedAndStartScanning() {
+    this.isConnected = false;
+    if (this.peripheral) {
+      this.peripheral.once('disconnect', () => null);  // clear the disconnect handler
+    }
+    this.peripheral = null;
+    this.startScanning();
   }
 
   onDiscoverPeripheral(peripheral: Peripheral) {
-    this.log.debug(`Discovered ${peripheral.advertisement.localName}`);
+    // this.log.debug(`Discovered ${peripheral.advertisement.localName}`);
+
+    if (!this.isScanning) {
+      return;  // the other plugins may keep scanning, just ignore and do not interrupt
+    }
+
     if (peripheral.advertisement.localName !== PERIPHERAL_NAME) {
       return;
     }
-    this.log.info(`Found ${PERIPHERAL_NAME}!`);
+    this.log.info(`Found ${PERIPHERAL_NAME}: ${peripheral}`);
 
     // At this stage, we have the PERIPHERAL_NAME and the SERVICE_UUID matched.
-    // We assume we can find the characteristic in the peripheral. Just allow stopScanning.
-    // If not, this.characteristic won't be set, and write function below will handle this.
-    if (this.peripheral) {
-      peripheral.once('disconnect', () => null);  // clear the disconnect handler
-    }
-    this.peripheral = peripheral;
-    noble.stopScanning();
+    // Set this at early stage, to avoid re-discovering the peripheral and interfer each other
+    this.isScanning = false; 
+
+    // Do not stop. If another plugin is using noble as well and acts on external stop (e.g. homebridge-mi-hygrothermograph),
+    // this will interrupt the connect process and trigger livelock.
+    // noble.stopScanning();
 
     peripheral.connect(error => {
       if (error) {
         this.log.error(`Failed to connect: ${error}`);
-        this.isConnected = false;
-        // this.peripheral should not have disconnect yet
-        this.peripheral = null;
-        this.startScanning();
+        this.setDisconnectedAndStartScanning();
       } else {
         this.log.info(`Connected to ${PERIPHERAL_NAME}`);
-        peripheral.discoverSomeServicesAndCharacteristics(
-          [SERVICE_UUID],
-          [CHARACTERISTIC_UUID],
-          (error, services, characteristics) => {
-            if (error) {
-              this.log.error(`Failed to discover characteristics: ${error}`);
-              this.isConnected = false;
-              // this.peripheral should not have disconnect yet
-              this.peripheral = null;
-              this.startScanning();
-            } else {
-              this.characteristic = characteristics[0];
-              peripheral.once('disconnect', this.onPeripheralDisconnect.bind(this));
-              this.isConnected = true;
-            }
-          },
-        );
+        this.peripheral = peripheral;
+        this.isConnected = true;
+
+        // peripheral.discoverSomeServicesAndCharacteristics(
+        //   [SERVICE_UUID],
+        //   [CHARACTERISTIC_UUID],
+        //   (error, services, characteristics) => {
+        //     if (error) {
+        //       this.log.error(`Failed to discover characteristics: ${error}`);
+        //       peripheral.disconnect();
+        //       this.setDisconnectedAndStartScanning();
+        //     } else {
+        //       this.log.info(`Characteristic found`);
+        //       this.characteristic = characteristics[0];
+        //       this.peripheral = peripheral;
+        //       this.peripheral.once('disconnect', this.onPeripheralDisconnect.bind(this));
+        //       this.isConnected = true;
+        //     }
+        //   },
+        // );
       }
     });
   }
 
   onPeripheralDisconnect() {
     this.log.info(`Disconnected from ${PERIPHERAL_NAME} peripheral. Restart scanning...`);
-    this.isConnected = false;
-    this.startScanning();
+    this.setDisconnectedAndStartScanning();
   }
 
   public isConnectedToPeripheral(): boolean {
@@ -122,17 +144,22 @@ export class DivergenceMeter {
   public write(data: Buffer) {
     if (!this.isConnected) {
       this.log.warn(`Cannot write to ${PERIPHERAL_NAME}: not connected`);
-      return;
+      throw new this.api.hap.HapStatusError(this.api.hap.HAPStatus.SERVICE_COMMUNICATION_FAILURE);
+      // Should already be scanning, 
     }
-    if (!this.characteristic) {
-      this.log.warn(`Cannot write to ${PERIPHERAL_NAME}: no characteristic found`);
-      this.isConnected = false;
-      this.startScanning();
-      return;
+    if (!this.peripheral) {
+      this.log.warn(`Cannot write to ${PERIPHERAL_NAME}: no peripheral found`);
+      this.setDisconnectedAndStartScanning();
+      throw new this.api.hap.HapStatusError(this.api.hap.HAPStatus.SERVICE_COMMUNICATION_FAILURE);
     }
+    // if (!this.characteristic) {
+    //   this.log.warn(`Cannot write to ${PERIPHERAL_NAME}: no characteristic found`);
+    //   this.setDisconnectedAndStartScanning();
+    //   throw new this.api.hap.HapStatusError(this.api.hap.HAPStatus.SERVICE_COMMUNICATION_FAILURE);
+    // }
 
     // No callback, or one new callback is registered every time
-    this.characteristic.write(data, false);
+    this.peripheral.writeHandle(5, data, false, () => null);
   }
 
   public sendCommand(command: string) {
