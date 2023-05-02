@@ -1,9 +1,8 @@
 {
-  "private": true,
   "displayName": "Steins;Gate Divergence Meter",
   "name": "homebridge-divergence-meter",
   "version": "1.0.0",
-  "description": "Control Sadudu's Steins;Gate Divergence Meter through BLE.",
+  "description": "Control Sadudu's Steins;Gate Divergence Meter through Homebridge.",
   "license": "Apache-2.0",
   "repository": {
     "type": "git",

@@ -1,169 +1,126 @@
+# Homebridge Steins;Gate Divergence Meter
 
-<p align="center">
+Control [Sadudu's Steins;Gate Divergence Meter](https://item.taobao.com/item.htm?id=573706227582) through Homebridge.
 
-<img src="https://github.com/homebridge/branding/raw/master/logos/homebridge-wordmark-logo-vertical.png" width="150">
+![Home View](resource/home-view.jpg)
 
-</p>
+## Features
 
+This plugin models the meter as a TV with input sources as display modes.
 
-# Homebridge Platform Plugin Template
+* Soft power off
+* Clock modes with time synchronization
+* Gyroscope mode
+* Controlled random worldline
+    * Result memorized
+    * Customizable random range
+* Unlimited customized worldlines
+* Auto sleep
 
-This is a template Homebridge platform plugin and can be used as a base to help you get started developing your own plugin.
+## Getting Started
 
-This template should be used in conjunction with the [developer documentation](https://developers.homebridge.io/). A full list of all supported service types, and their characteristics is available on this site.
+### Prerequisites
 
-## Clone As Template
+This plugin uses [Noble](https://github.com/noble/noble), a [Node.js](https://nodejs.org/) BLE library, to communicate
+with the meter.
+On Linux, the following dependencies should be installed:
 
-Click the link below to create a new GitHub Repository using this template, or click the *Use This Template* button above.
-
-<span align="center">
-
-### [Create New Repository From Template](https://github.com/homebridge/homebridge-plugin-template/generate)
-
-</span>
-
-## Setup Development Environment
-
-To develop Homebridge plugins you must have Node.js 12 or later installed, and a modern code editor such as [VS Code](https://code.visualstudio.com/). This plugin template uses [TypeScript](https://www.typescriptlang.org/) to make development easier and comes with pre-configured settings for [VS Code](https://code.visualstudio.com/) and ESLint. If you are using VS Code install these extensions:
-
-* [ESLint](https://marketplace.visualstudio.com/items?itemName=dbaeumer.vscode-eslint)
-
-## Install Development Dependencies
-
-Using a terminal, navigate to the project folder and run this command to install the development dependencies:
-
-```
-npm install
+```sh
+sudo apt-get install bluetooth bluez libbluetooth-dev libudev-dev
 ```
 
-## Update package.json
+For more details and descriptions for other platforms, please see
+the [Noble documentation](https://github.com/noble/noble#readme).
 
-Open the [`package.json`](./package.json) and change the following attributes:
+### Installation
 
-* `name` - this should be prefixed with `homebridge-` or `@username/homebridge-` and contain no spaces or special characters apart from a dashes
-* `displayName` - this is the "nice" name displayed in the Homebridge UI
-* `repository.url` - Link to your GitHub repo
-* `bugs.url` - Link to your GitHub repo issues page
+Install the plugin through the Homebridge UI, or through commandline:
 
-When you are ready to publish the plugin you should set `private` to false, or remove the attribute entirely.
-
-## Update Plugin Defaults
-
-Open the [`src/settings.ts`](./src/settings.ts) file and change the default values:
-
-* `PLATFORM_NAME` - Set this to be the name of your platform. This is the name of the platform that users will use to register the plugin in the Homebridge `config.json`.
-* `PLUGIN_NAME` - Set this to be the same name you set in the [`package.json`](./package.json) file. 
-
-Open the [`config.schema.json`](./config.schema.json) file and change the following attribute:
-
-* `pluginAlias` - set this to match the `PLATFORM_NAME` you defined in the previous step.
-
-## Build Plugin
-
-TypeScript needs to be compiled into JavaScript before it can run. The following command will compile the contents of your [`src`](./src) directory and put the resulting code into the `dist` folder.
-
-```
-npm run build
+```shell
+npm install -g homebridge-divergence-meter
 ```
 
-## Link To Homebridge
+### Add Accessories to Home
 
-Run this command so your global install of Homebridge can discover the plugin in your development environment:
+The meter is modeled as a TV. Due to the limitation of
+HomeKit, [Television](https://developers.homebridge.io/#/service/Television) services can only be published as external
+accessories, which need to be added to Home manually.
+
+Open the Home app - Add or Scan Accessory - More options... - Select the "Divergence Meter" TV - Enter the setup code
+shown in Homebridge log:
 
 ```
-npm link
+Please add [Divergence Meter XXXX] manually in Home app. Setup Code: XXX-XX-XXX
 ```
 
-You can now start Homebridge, use the `-D` flag so you can see debug log messages in your plugin:
+This plugin adds a Television with its input sources as display modes.
+Turning off the device is a **soft power off**, i.e. the nixie tubes are off but the device is still on.
 
-```
-homebridge -D
-```
+This plugin also adds a switch for random worldline. Turn on the switch to start randomization. Turn off to settle.
 
-## Watch For Changes and Build Automatically
+**NOTICE:** Due to the lack of a read-back interface, this plugin can be out-of-sync with the actual device.
+It is not aware of external changes: turning on/off physically, pressing the physical buttons, or changes made by the
+mini program.
+In those cases, auto-off will not work, and the accessory status may be out-of-sync.
 
-If you want to have your code compile automatically as you make changes, and restart Homebridge automatically between changes, you first need to add your plugin as a platform in `~/.homebridge/config.json`:
-```
+## Controlled Random Worldline
+
+The meter can generate random worldlines (by pressing the leftmost button for example).
+In this plugin, this function is achieved by the random worldline button (described above).
+The result is not stored.
+
+In addition, this plugin introduces a controlled random mode.
+When in the "Saved Random" mode, the random worldline is generated by the plugin.
+The range is configurable (see below, even negative divergence is possible!) and the results are memorized.
+
+## Configuration
+
+Configure the plugin through the Homebridge UI, or dd the following part to the "platforms" section of
+your [Homebridge config](https://github.com/homebridge/homebridge/wiki/Homebridge-Config-JSON-Explained):
+
+```shell
 {
-...
-    "platforms": [
-        {
-            "name": "Config",
-            "port": 8581,
-            "platform": "config"
-        },
-        {
-            "name": "<PLUGIN_NAME>",
-            //... any other options, as listed in config.schema.json ...
-            "platform": "<PLATFORM_NAME>"
-        }
-    ]
+    "name": "Divergence Meter",
+    "use24H": true,
+    "autoOff": true,
+    "autoOffTime": 300,
+    "randomSwitchName": "Random Worldline",
+    "randomMin": 0,
+    "randomMax": 0.999999,
+    "worldlines": [
+        "1.048569",
+        "3.141592"
+    ],
+    "scanningRestartDelay": 10000,
+    "platform": "DivergenceMeter"
 }
 ```
 
-and then you can run:
+| Key                    | Description                                                                                                                                                                                                                                                                                                                                                   | Default            |
+|------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|--------------------|
+| `name`                 | TV Accessory name.                                                                                                                                                                                                                                                                                                                                            | `Divergence Meter` |
+| `use24H`               | Use 24-hour mode for time display.                                                                                                                                                                                                                                                                                                                            | `true`             |
+| `autoOff`              | If enabled, turn off the Divergence Meter after some time since the last operation (turning on, changing mode). Due to the lack of the read-back interface, this plugin is not aware of external changes to the meter: turning on/off physically, pressing the physical buttons, or changes made by the mini program. In those cases, auto-off will not work. | `true`             |
+| `autoOffTime`          | Time for auto-off in seconds.                                                                                                                                                                                                                                                                                                                                 | `300`              |
+| `randomSwitchName`     | Name of the switch for random worldlines.                                                                                                                                                                                                                                                                                                                     | `Random Worldline` |
+| `randomMin`            | Minimum value for controlled random worldline described above. Can be negative.                                                                                                                                                                                                                                                                               | `0`                |
+| `randomMax`            | Maximum value for controlled random worldline described above.                                                                                                                                                                                                                                                                                                | `0.999999`         |
+| `worldlines`           | Customized worldlines. Must be 8-character long. Characters other than 0-9 and '.' turn off the nixie tube. When changing the number of customized worldlines, newly added input sources in Home may not be named correctly. Try removing and re-adding the accessory if it doesn't work.                                                                     |                    |
+| `scanningRestartDelay` | Delay to restart BLE scanning if interrupted. When multiple plugins use BLE, they may interfere with each other. If that is the case, try increasing this number.                                                                                                                                                                                             | `10000`            |
+| `platform`             | Must be `DivergenceMeter`.                                                                                                                                                                                                                                                                                                                                    |                    |
 
-```
-npm run watch
-```
+## Compatibility with the Physical Buttons and the WeChat Mini Program
 
-This will launch an instance of Homebridge in debug mode which will restart every time you make a change to the source code. It will load the config stored in the default location under `~/.homebridge`. You may need to stop other running instances of Homebridge while using this command to prevent conflicts. You can adjust the Homebridge startup command in the [`nodemon.json`](./nodemon.json) file.
+Due to the lack of a read-back interface, this plugin is not aware of external changes: turning on/off physically,
+pressing the physical buttons, or changes made by the WeChat mini program.
+In those cases, auto-off will not work, and the accessory status may be out-of-sync.
+So generally, this plugin is not expected to be used alone.
 
-## Customise Plugin
+As both this plugin and the WeChat mini program use the same BLE protocol, only one of them can connect at the same
+time (as long as this plugin is enabled and started, even if the accessory is not added to Home).
+Disable this plugin first before using the mini program.
 
-You can now start customising the plugin template to suit your requirements.
-
-* [`src/platform.ts`](./src/platform.ts) - this is where your device setup and discovery should go.
-* [`src/platformAccessory.ts`](./src/platformAccessory.ts) - this is where your accessory control logic should go, you can rename or create multiple instances of this file for each accessory type you need to implement as part of your platform plugin. You can refer to the [developer documentation](https://developers.homebridge.io/) to see what characteristics you need to implement for each service type.
-* [`config.schema.json`](./config.schema.json) - update the config schema to match the config you expect from the user. See the [Plugin Config Schema Documentation](https://developers.homebridge.io/#/config-schema).
-
-## Versioning Your Plugin
-
-Given a version number `MAJOR`.`MINOR`.`PATCH`, such as `1.4.3`, increment the:
-
-1. **MAJOR** version when you make breaking changes to your plugin,
-2. **MINOR** version when you add functionality in a backwards compatible manner, and
-3. **PATCH** version when you make backwards compatible bug fixes.
-
-You can use the `npm version` command to help you with this:
-
-```bash
-# major update / breaking changes
-npm version major
-
-# minor update / new features
-npm version update
-
-# patch / bugfixes
-npm version patch
-```
-
-## Publish Package
-
-When you are ready to publish your plugin to [npm](https://www.npmjs.com/), make sure you have removed the `private` attribute from the [`package.json`](./package.json) file then run:
-
-```
-npm publish
-```
-
-If you are publishing a scoped plugin, i.e. `@username/homebridge-xxx` you will need to add `--access=public` to command the first time you publish.
-
-#### Publishing Beta Versions
-
-You can publish *beta* versions of your plugin for other users to test before you release it to everyone.
-
-```bash
-# create a new pre-release version (eg. 2.1.0-beta.1)
-npm version prepatch --preid beta
-
-# publish to @beta
-npm publish --tag=beta
-```
-
-Users can then install the  *beta* version by appending `@beta` to the install command, for example:
-
-```
-sudo npm install -g homebridge-example-plugin@beta
-```
-
-
+Internally, customized worldline 1 and 2 is mapped to the original customized worldline 1 and 2.
+Worldline 3 is the saved random. Worldline 4 is the software off.
+Physical worldline buttons on the meter are updated once the corresponding worldlines are set once
+(but remember that this plugin is not aware of physical actions).
