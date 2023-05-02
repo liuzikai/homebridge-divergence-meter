@@ -2,7 +2,7 @@
 
 Control [Sadudu's Steins;Gate Divergence Meter](https://item.taobao.com/item.htm?id=573706227582) through Homebridge.
 
-![Home View](resource/home-view.jpg)
+![Home View](https://github.com/liuzikai/homebridge-divergence-meter/blob/b742bfb32d28aa59011a418a75c503a51a55da36/resource/home-view.jpg?raw=true)
 
 ## Features
 
