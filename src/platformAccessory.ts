@@ -178,8 +178,8 @@ export class DivergenceMeterAccessory {
 
       const now = new Date();
       if (this.lastSyncTime === null || now.getTime() - this.lastSyncTime.getTime() >= 24 * 60 * 60 * 1000) {
-        this.log.info('Sync time');
-        this.meter.syncTime();
+        const time = this.meter.syncTime();
+        this.log.info(`Sync time: ${time}`);
         this.lastSyncTime = now;
       }
 

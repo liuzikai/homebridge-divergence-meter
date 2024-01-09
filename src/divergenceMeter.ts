@@ -218,7 +218,9 @@ export class DivergenceMeter {
     return `${year}${month}${day}${hour}${minute}${second}`;
   }
 
-  public syncTime() {
-    this.sendCommand('#0' + this.getFormattedTime());
+  public syncTime(): string {
+    const formattedTime = this.getFormattedTime();
+    this.sendCommand('#00' + formattedTime);
+    return formattedTime;
   }
 }
