@@ -49,7 +49,7 @@ export class DivergenceMeter {
       this.reconnectTimeout = setTimeout(() => {
         this.reconnectTimeout = null;
         this.startScanning();
-      }, this.scanningRestartDelay);
+      }, this.scanningRestartDelay * (0.8 + Math.random() * 0.4) /* randomize the delay to avoid deadlocks */);
     }
   }
 
@@ -205,8 +205,17 @@ export class DivergenceMeter {
   }
 
   getFormattedTime(): string {
+    const padZero = (num: number): string => num.toString().padStart(2, '0');
+
     const now = new Date();
-    return now.toISOString().replace(/[-:.T]/g, '').substr(0, 14);
+    const year = now.getFullYear();
+    const month = padZero(now.getMonth() + 1); // getMonth() is zero-based
+    const day = padZero(now.getDate());
+    const hour = padZero(now.getHours());
+    const minute = padZero(now.getMinutes());
+    const second = padZero(now.getSeconds());
+
+    return `${year}${month}${day}${hour}${minute}${second}`;
   }
 
   public syncTime() {
